@@ -1,0 +1,10 @@
+Package: de.manuelgebele.libsysstats
+Name: libsysstats
+Depends: 
+Version: 1.0
+Architecture: iphoneos-arm
+Description: An awesome library of some sort!!
+Maintainer: Manuel Gebele
+Author: Manuel Gebele
+Section: System
+Tag: role::developer
