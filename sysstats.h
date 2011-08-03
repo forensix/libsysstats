@@ -73,9 +73,33 @@ void libsstats_get_cpu_percentage(libsstats_cpu cpu, libsstats_cpu_percentage *b
 
 
 /* -----------------------------------------------------------------------------
- * MEMORY
+ * NET
  * -------------------------------------------------------------------------- */
 
+#define LIBSSTATS_NETLIST_NUMBER 0
+#define LIBSSTATS_MAX_NETLIST    1
+#define LIBSSTATS_MAX_NETDEVICES 256
+
+typedef struct {
+	uint32_t number;
+} libsstats_netlist;
+    
+
+char **libsstats_get_netlist(libsstats_netlist *buf);
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
 #ifdef __cplusplus
 }
 #endif

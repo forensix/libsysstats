@@ -14,8 +14,8 @@
 #include <stdio.h>
 #include <unistd.h>
 #include <sys/types.h>
-
-#import "Math.h"
+#include <sys/socket.h> /* Needed for net/if.h ! */
+#include <net/if.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -40,9 +40,11 @@ libsstats_get_cpu(libsstats_cpu *buf)
     &icount);
     
     if (kret) {
-		return;
+        return;
 	}
     
+    memset (buf, 0, sizeof (libsstats_cpu));
+
     /* Loop through all processors an fill the user buf. */
     unsigned i;
     for (i = 0; i < pcount; i++) {
@@ -73,8 +75,10 @@ libsstats_get_cpu_percentage(libsstats_cpu cpu, libsstats_cpu_percentage *buf,
     unsigned long total;
     static unsigned long uold_load = 0, sold_load = 0;
     static unsigned long uold_total = 0, sold_total = 0;
-    float upercent = .0f, spercent = .0f;
+    float upercent = .0f, spercent = .0f, ipercent = 100.0f, tpercent = .0f;
     
+    memset (buf, 0, sizeof (libsstats_cpu_percentage));
+
     uload = cpu.xcpu_user[cpu_idx] + cpu.xcpu_nice[cpu_idx];
     sload = cpu.xcpu_sys[cpu_idx] + cpu.xcpu_nice[cpu_idx];
     
@@ -88,6 +92,9 @@ libsstats_get_cpu_percentage(libsstats_cpu cpu, libsstats_cpu_percentage *buf,
         spercent = 100.0f * (sload - sold_load) / (total - sold_total);
     }
     
+    tpercent = upercent + spercent;
+    ipercent = ipercent - tpercent;
+    
     uold_load = uload;
     sold_load = sload;
     uold_total = total;
@@ -95,12 +102,54 @@ libsstats_get_cpu_percentage(libsstats_cpu cpu, libsstats_cpu_percentage *buf,
     
     buf->user_cpu_percentage = upercent;
     buf->system_cpu_percentage = spercent;
+    buf->idle_cpu_percentage = ipercent;
 }
 
+/* -----------------------------------------------------------------------------
+ * NET
+ * -------------------------------------------------------------------------- */
+    
+char **
+libsstats_get_netlist(libsstats_netlist *buf)
+{
+    struct if_nameindex *ifstart, *ifs;
+	static char *devices[LIBSSTATS_MAX_NETDEVICES];
+    
+    memset (buf, 0, sizeof (libsstats_netlist));
 
+    ifs = ifstart = if_nameindex();
+    while(ifs && ifs->if_name) {
+        devices[buf->number] = ifs->if_name;
+        buf->number++;
+        ifs++;
+    }
+    
+    return (char **)devices;
+}
+    
+    
 #ifdef __cplusplus
 }
 #endif
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
