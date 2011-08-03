@@ -76,17 +76,91 @@ void libsstats_get_cpu_percentage(libsstats_cpu cpu, libsstats_cpu_percentage *b
  * NET
  * -------------------------------------------------------------------------- */
 
-#define LIBSSTATS_NETLIST_NUMBER 0
-#define LIBSSTATS_MAX_NETLIST    1
-#define LIBSSTATS_MAX_NETDEVICES 256
+#define LIBSSTATS_NETLIST_NUMBER        0
+#define LIBSSTATS_MAX_NETLIST           1
+#define LIBSSTATS_MAX_NETDEVICES        256
+
+#define LIBSSTATS_NETLOAD_IF_FLAGS      0
+#define LIBSSTATS_NETLOAD_MTU           1
+#define LIBSSTATS_NETLOAD_SUBNET        2
+#define LIBSSTATS_NETLOAD_ADDRESS       3
+#define LIBSSTATS_NETLOAD_PACKETS_IN    4
+#define LIBSSTATS_NETLOAD_PACKETS_OUT   5
+#define LIBSSTATS_NETLOAD_PACKETS_TOTAL 6
+#define LIBSSTATS_NETLOAD_BYTES_IN      7
+#define LIBSSTATS_NETLOAD_BYTES_OUT     8
+#define LIBSSTATS_NETLOAD_BYTES_TOTAL   9
+#define LIBSSTATS_NETLOAD_ERRORS_IN     10
+#define LIBSSTATS_NETLOAD_ERRORS_OUT    11
+#define LIBSSTATS_NETLOAD_ERRORS_TOTAL  12
+#define LIBSSTATS_NETLOAD_COLLISIONS    13
+#define LIBSSTATS_NETLOAD_ADDRESS6      14
+#define LIBSSTATS_NETLOAD_PREFIX6       15
+#define LIBSSTATS_NETLOAD_SCOPE6        16
+#define LIBSSTATS_NETLOAD_HWADDRESS     17
+#define LIBSSTATS_MAX_NETLOAD           18
+
+enum {
+	LIBSSTATS_IF_FLAGS_UP = 1,
+	LIBSSTATS_IF_FLAGS_BROADCAST,
+	LIBSSTATS_IF_FLAGS_DEBUG,
+	LIBSSTATS_IF_FLAGS_LOOPBACK,
+	LIBSSTATS_IF_FLAGS_POINTOPOINT,
+	LIBSSTATS_IF_FLAGS_RUNNING,
+	LIBSSTATS_IF_FLAGS_NOARP,
+	LIBSSTATS_IF_FLAGS_PROMISC,
+	LIBSSTATS_IF_FLAGS_ALLMULTI,
+	LIBSSTATS_IF_FLAGS_OACTIVE,
+	LIBSSTATS_IF_FLAGS_SIMPLEX,
+	LIBSSTATS_IF_FLAGS_LINK0,
+	LIBSSTATS_IF_FLAGS_LINK1,
+	LIBSSTATS_IF_FLAGS_LINK2,
+	LIBSSTATS_IF_FLAGS_ALTPHYS,
+	LIBSSTATS_IF_FLAGS_MULTICAST,
+	LIBSSTATS_IF_FLAGS_WIRELESS
+};
+
+enum LIBSSTATS_IF_IN6_SCOPE
+{
+	LIBSSTATS_IF_IN6_SCOPE_UNKNOWN = 0,
+	LIBSSTATS_IF_IN6_SCOPE_LINK    = 1,
+	LIBSSTATS_IF_IN6_SCOPE_SITE    = 2,
+	LIBSSTATS_IF_IN6_SCOPE_GLOBAL  = 4,
+	LIBSSTATS_IF_IN6_SCOPE_HOST    = 8
+};
 
 typedef struct {
 	uint32_t number;
 } libsstats_netlist;
     
+typedef struct {
+	uint64_t flags;
+	uint64_t if_flags;      /* LIBSSTATS_NETLOAD_IF_FLAGS         */
+    
+	uint32_t mtu;           /* LIBSSTATS_NETLOAD_MTU              */
+	uint32_t subnet;        /* LIBSSTATS_NETLOAD_SUBNET           */
+	uint32_t address;       /* LIBSSTATS_NETLOAD_ADDRESS          */
+
+	uint64_t packets_in;    /* LIBSSTATS_NETLOAD_PACKETS_IN       */
+	uint64_t packets_out;   /* LIBSSTATS_NETLOAD_PACKETS_OUT      */
+	uint64_t packets_total; /* LIBSSTATS_NETLOAD_PACKETS_TOTAL    */
+	uint64_t bytes_in;      /* LIBSSTATS_NETLOAD_BYTES_IN         */
+	uint64_t bytes_out;     /* LIBSSTATS_NETLOAD_BYTES_OUT        */
+	uint64_t bytes_total;   /* LIBSSTATS_NETLOAD_BYTES_TOTAL      */
+	uint64_t errors_in;		/* LIBSSTATS_NETLOAD_ERRORS_IN        */
+	uint64_t errors_out;    /* LIBSSTATS_NETLOAD_ERRORS_OUT       */
+	uint64_t errors_total;  /* LIBSSTATS_NETLOAD_ERRORS_TOTAL     */
+	uint64_t collisions;    /* LIBSSTATS_NETLOAD_COLLISIONS       */
+    
+	uint8_t address6[16];   /* LIBSSTATS_NETLOAD_ADDRESS6         */
+	uint8_t prefix6[16];    /* LIBSSTATS_NETLOAD_PREXIF6          */
+	uint8_t scope6;         /* LIBSSTATS_NETLOAD_SCOPE6           */
+    
+	uint8_t hwaddress[8];   /* LIBSSTATS_NETLOAD_HWADDRESS        */
+} libsstats_netload;
 
 char **libsstats_get_netlist(libsstats_netlist *buf);
-    
+void libsstats_get_netload(libsstats_netload *buf, const char *intf);
     
     
     

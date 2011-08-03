@@ -16,6 +16,12 @@
 #include <sys/types.h>
 #include <sys/socket.h> /* Needed for net/if.h ! */
 #include <net/if.h>
+#include <sys/types.h>
+#include <sys/sysctl.h>
+#include <net/if.h>
+#include <net/if_dl.h>
+#include <net/route.h>
+#include <stdlib.h> 
 
 #ifdef __cplusplus
 extern "C" {
@@ -126,7 +132,116 @@ libsstats_get_netlist(libsstats_netlist *buf)
     
     return (char **)devices;
 }
+
+
+void libsstats_get_netload(libsstats_netload *buf, const char *intf)
+{
+	int mib[] = { CTL_NET, PF_ROUTE, 0, 0, NET_RT_IFLIST, 0 };
+    size_t bufsize;
+	char *rtbuf, *ptr, *eob;
+	struct if_msghdr *ifm;
+        
+	memset(buf, 0, sizeof (libsstats_netload));
+	if (sysctl(mib, 6, NULL, &bufsize, NULL, 0) < 0)
+		return;
     
+	rtbuf = (char *)malloc(bufsize);
+	if (rtbuf == NULL)
+		return;
+    
+	if (sysctl(mib, 6, rtbuf, &bufsize, NULL, 0) < 0) {
+		free(rtbuf);
+		return;
+	}
+    
+	eob = rtbuf + bufsize;
+	ptr = rtbuf;
+	while (ptr < eob) {
+		struct sockaddr_dl *sdl;
+        
+		ifm = (struct if_msghdr *)ptr;
+        
+		if (ifm->ifm_type != RTM_IFINFO)
+			break;
+		ptr += ifm->ifm_msglen;
+        
+		while (ptr < eob) {
+			struct if_msghdr *nextifm = (struct if_msghdr *)ptr;
+            
+			if (nextifm->ifm_type != RTM_NEWADDR)
+				break;
+			ptr += nextifm->ifm_msglen;
+		}
+        
+		sdl = (struct sockaddr_dl *)(ifm + 1);
+        if (sdl->sdl_family != AF_LINK)
+			continue;
+		
+        if (strlen(intf) != sdl->sdl_nlen)
+			continue;
+
+        if (strncmp(intf, "en", 2) == 0)
+        {
+            if (strncmp(intf, sdl->sdl_data, 3) == 0)
+                goto FOUND;
+        }
+        else
+        {
+            if (strcmp(intf, sdl->sdl_data) == 0)
+			goto FOUND;
+        }
+	}
+	free (rtbuf);
+	return;
+    
+FOUND:
+	if (ifm->ifm_flags & IFF_UP)
+		buf->if_flags |= LIBSSTATS_IF_FLAGS_UP;
+	if (ifm->ifm_flags & IFF_BROADCAST)
+		buf->if_flags |= LIBSSTATS_IF_FLAGS_BROADCAST;
+	if (ifm->ifm_flags & IFF_DEBUG)
+		buf->if_flags |= LIBSSTATS_IF_FLAGS_DEBUG;
+	if (ifm->ifm_flags & IFF_LOOPBACK)
+		buf->if_flags |= LIBSSTATS_IF_FLAGS_LOOPBACK;
+	if (ifm->ifm_flags & IFF_POINTOPOINT)
+		buf->if_flags |= LIBSSTATS_IF_FLAGS_POINTOPOINT;
+	if (ifm->ifm_flags & IFF_RUNNING)
+		buf->if_flags |= LIBSSTATS_IF_FLAGS_RUNNING;
+	if (ifm->ifm_flags & IFF_NOARP)
+		buf->if_flags |= LIBSSTATS_IF_FLAGS_NOARP;
+	if (ifm->ifm_flags & IFF_NOARP)
+		buf->if_flags |= LIBSSTATS_IF_FLAGS_PROMISC;
+	if (ifm->ifm_flags & IFF_ALLMULTI)
+		buf->if_flags |= LIBSSTATS_IF_FLAGS_ALLMULTI;
+	if (ifm->ifm_flags & IFF_OACTIVE)
+		buf->if_flags |= LIBSSTATS_IF_FLAGS_OACTIVE;
+	if (ifm->ifm_flags & IFF_SIMPLEX)
+		buf->if_flags |= LIBSSTATS_IF_FLAGS_SIMPLEX;
+	if (ifm->ifm_flags & IFF_LINK0)
+		buf->if_flags |= LIBSSTATS_IF_FLAGS_LINK0;
+	if (ifm->ifm_flags & IFF_LINK1)
+		buf->if_flags |= LIBSSTATS_IF_FLAGS_LINK1;
+	if (ifm->ifm_flags & IFF_LINK2)
+		buf->if_flags |= LIBSSTATS_IF_FLAGS_LINK2;
+	if (ifm->ifm_flags & IFF_ALTPHYS)
+		buf->if_flags |= LIBSSTATS_IF_FLAGS_ALTPHYS;
+	if (ifm->ifm_flags & IFF_MULTICAST)
+		buf->if_flags |= LIBSSTATS_IF_FLAGS_MULTICAST;
+	buf->mtu		= ifm->ifm_data.ifi_mtu;
+	buf->subnet		= 0; /* FIXME */
+	buf->address		= 0; /* FIXME */
+	buf->packets_in		= ifm->ifm_data.ifi_ipackets;
+	buf->packets_out	= ifm->ifm_data.ifi_opackets;
+	buf->packets_total	= buf->packets_in + buf->packets_out;
+	buf->bytes_in		= ifm->ifm_data.ifi_ibytes;
+	buf->bytes_out		= ifm->ifm_data.ifi_obytes;
+	buf->bytes_total	= buf->bytes_in + buf->bytes_out;
+	buf->errors_in		= ifm->ifm_data.ifi_ierrors;
+	buf->errors_out		= ifm->ifm_data.ifi_oerrors;
+	buf->errors_total	= buf->errors_in + buf->errors_out;
+	buf->collisions		= ifm->ifm_data.ifi_collisions;
+}
+
     
 #ifdef __cplusplus
 }
