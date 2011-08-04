@@ -111,6 +111,23 @@ libsstats_get_cpu_percentage(libsstats_cpu cpu, libsstats_cpu_percentage *buf,
     buf->idle_cpu_percentage = ipercent;
 }
 
+void
+libsstats_get_loadavg(libsstats_loadavg *buf)
+{
+    double ldavg[3];
+	int i;
+        
+	memset (buf, 0, sizeof (libsstats_loadavg));
+    
+	if (getloadavg (ldavg, 3) != 3) {
+		return;
+	}
+    
+	for (i = 0; i < 3; i++) {
+		buf->loadavg[i] = ldavg[i];
+	}    
+}
+
 /* -----------------------------------------------------------------------------
  * NET
  * -------------------------------------------------------------------------- */

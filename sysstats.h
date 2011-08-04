@@ -17,26 +17,32 @@ extern "C" {
  * CPU
  * -------------------------------------------------------------------------- */
 
-#define LIBSSTATS_CPU_TOTAL     0
-#define LIBSSTATS_CPU_USER      1
-#define LIBSSTATS_CPU_NICE      2
-#define LIBSSTATS_CPU_SYS       3
-#define LIBSSTATS_CPU_IDLE      4
-#define LIBSSTATS_CPU_FREQUENCY 5
-#define LIBSSTATS_XCPU_TOTAL    6
-#define LIBSSTATS_XCPU_USER     7
-#define LIBSSTATS_XCPU_NICE     8
-#define LIBSSTATS_XCPU_SYS      9
-#define LIBSSTATS_XCPU_IDLE     10
-#define LIBSSTATS_XCPU_FLAGS    11
-#define LIBSSTATS_CPU_IOWAIT    12
-#define LIBSSTATS_CPU_IRQ       13
-#define LIBSSTATS_CPU_SOFTIRQ   14
-#define LIBSSTATS_XCPU_IOWAIT   15
-#define LIBSSTATS_XCPU_IRQ      16
-#define LIBSSTATS_XCPU_SOFTIRQ  17
-#define LIBSSTATS_MAX_CPU       18
-#define LIBSSTATS_NCPU          32
+#define LIBSSTATS_CPU_TOTAL              0
+#define LIBSSTATS_CPU_USER               1
+#define LIBSSTATS_CPU_NICE               2
+#define LIBSSTATS_CPU_SYS                3
+#define LIBSSTATS_CPU_IDLE               4
+#define LIBSSTATS_CPU_FREQUENCY          5
+#define LIBSSTATS_XCPU_TOTAL             6
+#define LIBSSTATS_XCPU_USER              7
+#define LIBSSTATS_XCPU_NICE              8
+#define LIBSSTATS_XCPU_SYS               9
+#define LIBSSTATS_XCPU_IDLE             10
+#define LIBSSTATS_XCPU_FLAGS            11
+#define LIBSSTATS_CPU_IOWAIT            12
+#define LIBSSTATS_CPU_IRQ               13
+#define LIBSSTATS_CPU_SOFTIRQ           14
+#define LIBSSTATS_XCPU_IOWAIT           15
+#define LIBSSTATS_XCPU_IRQ              16
+#define LIBSSTATS_XCPU_SOFTIRQ          17
+#define LIBSSTATS_MAX_CPU               18
+#define LIBSSTATS_NCPU                  32
+
+#define LIBSSTATS_LOADAVG_LOADAVG        0
+#define LIBSSTATS_LOADAVG_NR_RUNNING     1
+#define LIBSSTATS_LOADAVG_NR_TASKS       2
+#define LIBSSTATS_LOADAVG_LAST_PID       3
+#define LIBSSTATS_MAX_LOADAVG            4
 
 typedef struct {
 	uint64_t flags;
@@ -68,8 +74,18 @@ typedef struct {
 } libsstats_cpu_percentage;
 
 
+typedef struct
+{
+	double   loadavg [3];   /* LIBSSTATS_LOADAVG_LOADAVG    */
+	uint64_t nr_running;    /* LIBSSTATS_LOADAVG_NR_RUNNING */
+	uint64_t nr_tasks;      /* LIBSSTATS_LOADAVG_NR_TASKS   */
+	uint64_t last_pid;      /* LIBSSTATS_LOADAVG_LAST_PID   */
+} libsstats_loadavg;
+
 void libsstats_get_cpu(libsstats_cpu *buf);
 void libsstats_get_cpu_percentage(libsstats_cpu cpu, libsstats_cpu_percentage *buf, unsigned cpu_idx);
+
+void libsstats_get_loadavg(libsstats_loadavg *buf);
 
 
 /* -----------------------------------------------------------------------------
@@ -163,15 +179,47 @@ char **libsstats_get_netlist(libsstats_netlist *buf);
 void libsstats_get_netload(libsstats_netload *buf, const char *intf);
     
     
-    
-    
-    
-    
-    
-    
-    
-    
-    
+/* -----------------------------------------------------------------------------
+ * PROCESSES
+ * -------------------------------------------------------------------------- */
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+typedef union 
+{
+	libsstats_cpu               cpu;
+	libsstats_cpu_percentage	cpu_percentage;
+    libsstats_netlist           netlist;
+    libsstats_netload           netload;
+} libsstats_union;
     
     
 #ifdef __cplusplus
