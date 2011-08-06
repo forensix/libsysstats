@@ -180,13 +180,19 @@ void libsstats_get_netload(libsstats_netload *buf, const char *intf);
     
     
 /* -----------------------------------------------------------------------------
- * PROCESSES
+ * Memory
  * -------------------------------------------------------------------------- */
 
+typedef struct {
+	float total;
+	float used;
+	float free;
+    float active;
+    float inactive;
+    float wired;
+} libsstats_mem;
 
-
-
-
+void libsstats_get_mem(libsstats_mem *buf);
 
 
 
@@ -219,6 +225,8 @@ typedef union
 	libsstats_cpu_percentage	cpu_percentage;
     libsstats_netlist           netlist;
     libsstats_netload           netload;
+    libsstats_loadavg           loadavg;
+    libsstats_mem               mem;
 } libsstats_union;
     
     

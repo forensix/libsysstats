@@ -10,6 +10,7 @@
 #include "sysstats.h"
 #include <mach/mach_init.h>
 #include <mach/mach_host.h>
+#include <mach/host_info.h>
 #include <mach/vm_map.h>
 #include <stdio.h>
 #include <unistd.h>
@@ -259,7 +260,41 @@ FOUND:
 	buf->collisions		= ifm->ifm_data.ifi_collisions;
 }
 
+/* -----------------------------------------------------------------------------
+ * Memory
+ * -------------------------------------------------------------------------- */
+
+void
+libsstats_get_mem(libsstats_mem *buf)
+{
+	vm_statistics_data_t vm_info;
+	mach_msg_type_number_t info_count;
+        
+	memset (buf, 0, sizeof (libsstats_mem));
     
+	info_count = HOST_VM_INFO_COUNT;
+	if (host_statistics(mach_host_self(), HOST_VM_INFO,
+                         (host_info_t)&vm_info, &info_count)) {
+		return;
+	}
+    
+    float active_count   = vm_info.active_count   * vm_page_size / 1048576.0;
+    float inactive_count = vm_info.inactive_count * vm_page_size / 1048576.0;
+    float wire_count     = vm_info.wire_count     * vm_page_size / 1048576.0;
+    float total_count    = (vm_info.active_count
+                         +  vm_info.inactive_count
+                         +  vm_info.free_count
+                         +  vm_info.wire_count)    * vm_page_size / 1048576.0;
+    float free_count     = vm_info.free_count      * vm_page_size / 1048576.0;
+    float used_count     = total_count - free_count               / 1048576.0;
+    buf->active             = active_count;
+    buf->inactive           = inactive_count;
+    buf->wired              = wire_count;
+    buf->total              = total_count;
+    buf->free               = free_count;
+    buf->used               = used_count;
+}
+
 #ifdef __cplusplus
 }
 #endif
