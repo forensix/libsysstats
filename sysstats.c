@@ -8,36 +8,54 @@
  * -------------------------------------------------------------------------- */
 
 #include "sysstats.h"
+
+#include <stdio.h>
+#include <string.h>
+#include <unistd.h>
+#include <stdlib.h>
+#include <syslog.h>
+#include <dlfcn.h>
+
+#include <ifaddrs.h>
+#include <netdb.h>
+#include <arpa/inet.h>
+
+#include <net/if.h>
+#include <net/if_dl.h>
+#include <net/if_types.h>
+#include <net/route.h>
+
+#include <sys/socket.h> /* Needed for net/if.h ! */
+#include <sys/types.h>
+#include <sys/sysctl.h>
+
 #include <mach/mach_init.h>
 #include <mach/mach_host.h>
 #include <mach/host_info.h>
 #include <mach/vm_map.h>
-#include <stdio.h>
-#include <unistd.h>
-#include <sys/types.h>
-#include <sys/socket.h> /* Needed for net/if.h ! */
-#include <net/if.h>
-#include <sys/types.h>
-#include <sys/sysctl.h>
-#include <net/if.h>
-#include <net/if_dl.h>
-#include <net/route.h>
-#include <stdlib.h> 
+
+#define IPCONFIGURATION_BUNDLE_PATH \
+"/System/Library/SystemConfiguration/IPConfiguration.bundle/IPConfiguration"
+
+#define CORE_TELEPHONY_PATH \
+"/System/Library/Frameworks/CoreTelephony.framework/CoreTelephony"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
-    
-/* -----------------------------------------------------------------------------
- * CPU
- * -------------------------------------------------------------------------- */
+
+// -----------------------------------------------------------------------------
+#pragma mark CPU
+// -----------------------------------------------------------------------------
 
 void
 libsstats_get_cpu(libsstats_cpu *buf)
 {
     processor_cpu_load_info_t  pinfo;
-    mach_msg_type_number_t     icount;
-    natural_t                  pcount; /* processor count */
+    mach_msg_type_number_t icount;
+    natural_t pcount; /* processor count */
+    
+    memset (buf, 0, sizeof (libsstats_cpu));
     
     kern_return_t kret
     = host_processor_info(mach_host_self(),
@@ -50,66 +68,74 @@ libsstats_get_cpu(libsstats_cpu *buf)
         return;
 	}
     
-    memset (buf, 0, sizeof (libsstats_cpu));
-
     /* Loop through all processors an fill the user buf. */
     unsigned i;
     for (i = 0; i < pcount; i++) {
-        buf->xcpu_user[i] = pinfo[i].cpu_ticks[CPU_STATE_USER];
-		buf->xcpu_sys[i] = pinfo[i].cpu_ticks[CPU_STATE_SYSTEM];
-		buf->xcpu_idle[i] = pinfo[i].cpu_ticks[CPU_STATE_IDLE];
-		buf->xcpu_nice[i] = pinfo[i].cpu_ticks[CPU_STATE_NICE];
-		buf->xcpu_total[i] = buf->xcpu_user[i] + buf->xcpu_sys[i] +
-        buf->xcpu_idle[i] + buf->xcpu_nice[i];
+        buf->xcpu_user[i]   = pinfo[i].cpu_ticks[CPU_STATE_USER];
+		buf->xcpu_sys[i]    = pinfo[i].cpu_ticks[CPU_STATE_SYSTEM];
+		buf->xcpu_idle[i]   = pinfo[i].cpu_ticks[CPU_STATE_IDLE];
+		buf->xcpu_nice[i]   = pinfo[i].cpu_ticks[CPU_STATE_NICE];
+		buf->xcpu_total[i]  = buf->xcpu_user[i] + buf->xcpu_sys[i] +
         
-		buf->user  += buf->xcpu_user[i];
-		buf->sys   += buf->xcpu_sys[i];
-		buf->idle  += buf->xcpu_idle[i];
-		buf->nice  += buf->xcpu_nice[i];
-		buf->total += buf->xcpu_total[i];
+        buf->xcpu_idle[i]   + buf->xcpu_nice[i];
+        
+		buf->user           += buf->xcpu_user[i];
+		buf->sys            += buf->xcpu_sys[i];
+		buf->idle           += buf->xcpu_idle[i];
+		buf->nice           += buf->xcpu_nice[i];
+		buf->total          += buf->xcpu_total[i];
     }
+    
     vm_deallocate (mach_task_self(), (vm_address_t)pinfo, icount);
     
 	buf->frequency = 100;
 }
 
-
 void
 libsstats_get_cpu_percentage(libsstats_cpu cpu, libsstats_cpu_percentage *buf,
                              unsigned cpu_idx)
 {
-    unsigned long uload, sload;
-    unsigned long total;
-    static unsigned long uold_load = 0, sold_load = 0;
-    static unsigned long uold_total = 0, sold_total = 0;
-    float upercent = .0f, spercent = .0f, ipercent = 100.0f, tpercent = .0f;
+    unsigned long user_load;
+    unsigned long system_load;
+    unsigned long total_load;
+    static unsigned long user_prev_load = 0;
+    static unsigned long system_prev_load = 0;
+    static unsigned long user_prev_total = 0;
+    static unsigned long system_prev_total = 0;
+    float user_percent = .0f;
+    float system_percent = .0f;
+    float idle_percent = 100.0f;
+    float total_percent = .0f;
     
     memset (buf, 0, sizeof (libsstats_cpu_percentage));
 
-    uload = cpu.xcpu_user[cpu_idx] + cpu.xcpu_nice[cpu_idx];
-    sload = cpu.xcpu_sys[cpu_idx] + cpu.xcpu_nice[cpu_idx];
+    user_load = cpu.xcpu_user[cpu_idx] + cpu.xcpu_nice[cpu_idx];
+    system_load = cpu.xcpu_sys[cpu_idx] + cpu.xcpu_nice[cpu_idx];
     
-    total = cpu.xcpu_total[cpu_idx];
+    total_load = cpu.xcpu_total[cpu_idx];
     
-    if (total != uold_total) {
-        upercent = 100.0f * (uload - uold_load) / (total - uold_total);
+    if (total_load != user_prev_total) {
+        user_percent = 100.0f * (user_load - user_prev_load)
+                              / (total_load - user_prev_total);
     }
     
-    if (total != sold_total) {
-        spercent = 100.0f * (sload - sold_load) / (total - sold_total);
+    if (total_load != system_prev_total) {
+        system_percent = 100.0f * (system_load - system_prev_load)
+                                / (total_load - system_prev_total);
     }
     
-    tpercent = upercent + spercent;
-    ipercent = ipercent - tpercent;
+    total_percent = user_percent + system_percent;
+    idle_percent = idle_percent - total_percent;
     
-    uold_load = uload;
-    sold_load = sload;
-    uold_total = total;
-    sold_total = total;
+    /* Store for further calculation. */
+    user_prev_load = user_load;
+    system_prev_load = system_load;
+    user_prev_total = total_load;
+    system_prev_total = total_load;
     
-    buf->user_cpu_percentage = upercent;
-    buf->system_cpu_percentage = spercent;
-    buf->idle_cpu_percentage = ipercent;
+    buf->user_cpu_percentage = user_percent;
+    buf->system_cpu_percentage = system_percent;
+    buf->idle_cpu_percentage = idle_percent;
 }
 
 void
@@ -129,10 +155,10 @@ libsstats_get_loadavg(libsstats_loadavg *buf)
 	}    
 }
 
-/* -----------------------------------------------------------------------------
- * NET
- * -------------------------------------------------------------------------- */
-    
+// -----------------------------------------------------------------------------
+#pragma mark Net
+// -----------------------------------------------------------------------------
+
 char **
 libsstats_get_netlist(libsstats_netlist *buf)
 {
@@ -205,7 +231,7 @@ void libsstats_get_netload(libsstats_netload *buf, const char *intf)
         }
         else
         {
-            if (strcmp(intf, sdl->sdl_data) == 0)
+            if (strcmp(intf, sdl->sdl_data) == 0) // TODO
 			goto FOUND;
         }
 	}
@@ -245,8 +271,8 @@ FOUND:
 		buf->if_flags |= LIBSSTATS_IF_FLAGS_ALTPHYS;
 	if (ifm->ifm_flags & IFF_MULTICAST)
 		buf->if_flags |= LIBSSTATS_IF_FLAGS_MULTICAST;
-	buf->mtu		= ifm->ifm_data.ifi_mtu;
-	buf->subnet		= 0; /* FIXME */
+	buf->mtu            = ifm->ifm_data.ifi_mtu;
+	buf->subnet         = 0; /* FIXME */
 	buf->address		= 0; /* FIXME */
 	buf->packets_in		= ifm->ifm_data.ifi_ipackets;
 	buf->packets_out	= ifm->ifm_data.ifi_opackets;
@@ -260,9 +286,82 @@ FOUND:
 	buf->collisions		= ifm->ifm_data.ifi_collisions;
 }
 
-/* -----------------------------------------------------------------------------
- * Memory
- * -------------------------------------------------------------------------- */
+void
+libsstats_get_mac(const char *intf, libsstats_mac *buf)
+{
+    int success;
+    struct ifaddrs *addrs;
+    struct ifaddrs *cursor;
+    const struct sockaddr_dl *sock_addr;
+    const unsigned char *base;
+    int i;
+    
+    memset (buf, 0, sizeof (libsstats_mac));
+    
+    success = (getifaddrs(&addrs) == 0);
+    if (!success) {
+        return;
+    }
+    
+    cursor = addrs;
+    while (cursor != 0) {
+        if ((cursor->ifa_addr->sa_family == AF_LINK)
+            && (((const struct sockaddr_dl *)cursor->ifa_addr)->sdl_type == IFT_ETHER)
+            && strcmp(intf,  cursor->ifa_name) == 0) {
+            sock_addr = (const struct sockaddr_dl *)cursor->ifa_addr;
+            base = (const unsigned char *)&sock_addr->sdl_data[sock_addr->sdl_nlen];
+            strcpy(buf->macaddress, ""); 
+            for (i = 0; i < sock_addr->sdl_alen; i++) {
+                if (i != 0) {
+                    strcat(buf->macaddress, ":");
+                }
+                char partialAddr[3];
+                sprintf(partialAddr, "%02x", base[i]);  // TODO
+                strcat(buf->macaddress, partialAddr);   // TODO
+            }
+        }
+        cursor = cursor->ifa_next;
+    }
+    
+    freeifaddrs(addrs);
+}
+
+void
+libsstats_get_ip(const char *intf, libsstats_ip *buf)
+{
+    struct ifaddrs *interfaces = NULL;
+    struct ifaddrs *temp_addr = NULL;
+    int success = 0;
+    
+    memset (buf, 0, sizeof (libsstats_ip));
+
+    strncpy(buf->ipaddress, "N/A", 4);
+    
+    success = getifaddrs(&interfaces);
+    if (success == 0)
+    {
+        temp_addr = interfaces;
+        while(temp_addr != NULL)
+        {
+            if(temp_addr->ifa_addr->sa_family == AF_INET)
+            {
+                if (strcmp(temp_addr->ifa_name, intf) == 0) // TODO
+                {
+                    strcpy(buf->ipaddress,
+                           inet_ntoa(((struct sockaddr_in *)temp_addr->ifa_addr)->sin_addr)); // TODO
+                }
+            }
+            
+            temp_addr = temp_addr->ifa_next;
+        }
+    }
+    
+    freeifaddrs(interfaces);
+}
+
+// -----------------------------------------------------------------------------
+#pragma mark Memory
+// -----------------------------------------------------------------------------
 
 void
 libsstats_get_mem(libsstats_mem *buf)
@@ -295,32 +394,176 @@ libsstats_get_mem(libsstats_mem *buf)
     buf->used               = used_count;
 }
 
+
+// -----------------------------------------------------------------------------
+#pragma mark Wireless
+// -----------------------------------------------------------------------------
+
+static int curr_scanning = 0;
+
+void
+libsstats_get_wireless(libsstats_wireless *buf)
+{
+    if (curr_scanning)
+    {
+        return;
+    }
+    curr_scanning = 1;
+
+    memset (buf, 0, sizeof (libsstats_wireless));
+   
+    typedef int (*open_h)(void *);
+    typedef int (*close_h)(void *);
+    typedef int (*bind_h)(void *, CFStringRef);
+    typedef int (*scan_h)(void *, CFArrayRef *, void *);
+
+    open_h o;
+    close_h c;
+    bind_h b;
+    scan_h s;
+    
+    void *handle = dlopen(IPCONFIGURATION_BUNDLE_PATH, RTLD_LAZY);
+    if (!handle) goto DONE;
+    
+    *(void **)(&o) = dlsym(handle, "Apple80211Open");
+    if (!o) goto DONE;
+    
+    *(void **)(&c) = dlsym(handle, "Apple80211Close");
+    if (!c) goto DONE;
+    
+    *(void **)(&b) = dlsym(handle, "Apple80211BindToInterface");
+    if (!b) goto DONE;
+    
+    *(void **)(&s) = dlsym(handle, "Apple80211Scan");
+    if (!s) goto DONE;
+    
+    CFDictionaryRef parameters
+    = CFDictionaryCreateMutable(
+        NULL,
+        0,
+        &kCFTypeDictionaryKeyCallBacks,
+        &kCFTypeDictionaryValueCallBacks
+    );
+    
+    int retval;
+    
+    // Open
+    retval = o(&handle);
+    if (retval) goto DONE;
+    
+    // Bind
+    retval = b(handle, CFSTR("en0"));
+    if (retval) goto DONE;
+    
+    CFArrayRef networks;
+
+    // Scan
+    retval = s(handle, &networks, (void *)parameters);
+    if (retval) goto DONE;
+    
+    // Info
+    int i;
+    for (i = 0; i < CFArrayGetCount(networks) && i < 256; i++) {
+        CFDictionaryRef network
+        = (CFDictionaryRef)CFArrayGetValueAtIndex(networks, i);
+        buf->networks[i] = network;
+        buf->number++;
+    }
+    
+    // Close
+    c(handle);
+    dlclose(handle);    
+    
+DONE:
+    curr_scanning = 0;
+}
+
+// -----------------------------------------------------------------------------
+#pragma mark Cellular Data
+// -----------------------------------------------------------------------------
+
+void
+libsstats_get_cellular(libsstats_cellular *buf)
+{
+    memset (buf, 0, sizeof(libsstats_cellular));
+    void *libHandle = dlopen(CORE_TELEPHONY_PATH, RTLD_LAZY);
+	
+    int (*CTGetSignalStrength)();
+	CTGetSignalStrength = dlsym(libHandle, "CTGetSignalStrength");
+	if (CTGetSignalStrength == NULL) return;	
+	
+    buf->rssi = CTGetSignalStrength();
+	
+    dlclose(libHandle);	
+}
+
+void libsstats_get_processinfo(libsstats_processinfo *buf)
+{
+    int mib[5];
+    struct kinfo_proc *procs = NULL, *newprocs;
+    int i, st, nprocs;
+    size_t miblen, size;
+    
+    memset (buf, 0, sizeof (libsstats_processinfo));
+
+    mib[0] = CTL_KERN;
+    mib[1] = KERN_PROC;
+    mib[2] = KERN_PROC_ALL;
+    mib[3] = 0;
+    miblen = 4;
+    
+    st = sysctl(mib, miblen, NULL, &size, NULL, 0);
+    do
+    {
+        size += size / 10;
+        newprocs = realloc(procs, size);
+        if (!newprocs)
+        {
+            if (procs)
+            {
+                free(procs);
+            }
+            
+            syslog(1, "libsysstats: Error: realloc failed.");
+            return;
+        }
+        
+        procs = newprocs;
+        st = sysctl(mib, miblen, procs, &size, NULL, 0);
+    }
+    while (st == -1 && errno == ENOMEM);
+    
+    if (st != 0)
+    {
+        syslog(1, "libsysstats: Error: sysctl(KERN_PROC) failed.");
+        return;
+    }
+    
+    if (size % sizeof(struct kinfo_proc) != 0)
+    {
+        return;
+    }
+    nprocs = size / sizeof(struct kinfo_proc);
+    
+    if (!nprocs)
+    {
+        syslog(1, "libsysstats: !nprocs");
+        return;
+    }
+
+    /* Get all processes. */
+    for (i = nprocs - 1; i >= 0;  i--)
+    {
+        libsstats_process proc;
+        proc.pid = (int)procs[i].kp_proc.p_pid;
+        strncpy(proc.name, procs[i].kp_proc.p_comm, 256 - 1);
+        buf->processes[buf->number] = proc;
+        buf->number++;
+    }
+    
+    free(procs);
+}
+
 #ifdef __cplusplus
 }
 #endif
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
