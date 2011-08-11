@@ -52,7 +52,16 @@ enum LIBSSTATS_IF_IN6_SCOPE {
 	LIBSSTATS_IF_IN6_SCOPE_GLOBAL  = 4,
 	LIBSSTATS_IF_IN6_SCOPE_HOST    = 8
 };
-
+    
+typedef enum {
+    LIBSSTATS_PROC_UNKNOWN = -1,
+    LIBSSTATS_PROC_IDLE,
+    LIBSSTATS_PROC_RUN,
+    LIBSSTATS_PROC_SLEEP,
+    LIBSSTATS_PROC_STOP,
+    LIBSSTATS_PROC_ZOMBIE
+} proc_state;
+    
 typedef struct {
 	uint64_t flags;
 	uint64_t total;
@@ -127,16 +136,16 @@ typedef struct {
 } libsstats_ip;
 
 typedef struct {
-	float total;
-	float used;
-	float free;
+    float total;
+    float used;
+    float free;
     float active;
     float inactive;
     float wired;
 } libsstats_mem;
 
 typedef struct {
-    uint32_t number;
+    uint32_t        number;
     CFDictionaryRef networks[256];
 } libsstats_wireless;
 
@@ -145,19 +154,26 @@ typedef struct {
 } libsstats_cellular;
 
 typedef struct {
-    char name[LIBSSTATS_MAX_NAMELEN];
-    uint32_t  pid;
+    char        name[LIBSSTATS_MAX_NAMELEN];
+    uint32_t    pid;
+    u_char      priority;
+    time_t      run_time;
+    proc_state  state;
 } libsstats_process;
 
 typedef struct {
-    int number;
-    libsstats_process processes[LIBSSTATS_MAX_PROCESSES];
-    
+    int                 number;
+    libsstats_process   processes[LIBSSTATS_MAX_PROCESSES];
 } libsstats_processinfo;
 
+typedef struct {
+    double uptime;
+    double boot_time;
+} libsstats_uptime;
+
 typedef union  {
-	libsstats_cpu               cpu;
-	libsstats_cpu_percentage	cpu_percentage;
+    libsstats_cpu               cpu;
+    libsstats_cpu_percentage    cpu_percentage;
     libsstats_loadavg           loadavg;
     libsstats_netlist           netlist;
     libsstats_netload           netload;
@@ -168,6 +184,7 @@ typedef union  {
     libsstats_cellular          cellular;;
     libsstats_process           process;
     libsstats_processinfo       processinfo;
+    libsstats_uptime            uptime;
 } libsstats_union;
 
 void libsstats_get_cpu(libsstats_cpu *buf);
@@ -181,6 +198,7 @@ void libsstats_get_mem(libsstats_mem *buf);
 void libsstats_get_wireless(libsstats_wireless *buf);
 void libsstats_get_cellular(libsstats_cellular *buf);
 void libsstats_get_processinfo(libsstats_processinfo *buf);
+void libsstats_get_uptime(libsstats_uptime *buf);
 
 #ifdef __cplusplus
 }

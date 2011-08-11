@@ -142,17 +142,17 @@ void
 libsstats_get_loadavg(libsstats_loadavg *buf)
 {
     double ldavg[3];
-	int i;
-        
-	memset (buf, 0, sizeof (libsstats_loadavg));
+    int i;
     
-	if (getloadavg (ldavg, 3) != 3) {
-		return;
-	}
+    memset (buf, 0, sizeof (libsstats_loadavg));
     
-	for (i = 0; i < 3; i++) {
-		buf->loadavg[i] = ldavg[i];
-	}    
+    if (getloadavg (ldavg, 3) != 3) {
+        return;
+    }
+    
+    for (i = 0; i < 3; i++) {
+        buf->loadavg[i] = ldavg[i];
+    }    
 }
 
 // -----------------------------------------------------------------------------
@@ -163,10 +163,10 @@ char **
 libsstats_get_netlist(libsstats_netlist *buf)
 {
     struct if_nameindex *ifstart, *ifs;
-	static char *devices[LIBSSTATS_MAX_NETDEVICES];
+    static char *devices[LIBSSTATS_MAX_NETDEVICES];
     
     memset (buf, 0, sizeof (libsstats_netlist));
-
+    
     ifs = ifstart = if_nameindex();
     while(ifs && ifs->if_name) {
         devices[buf->number] = ifs->if_name;
@@ -513,14 +513,11 @@ void libsstats_get_processinfo(libsstats_processinfo *buf)
     miblen = 4;
     
     st = sysctl(mib, miblen, NULL, &size, NULL, 0);
-    do
-    {
+    do {
         size += size / 10;
         newprocs = realloc(procs, size);
-        if (!newprocs)
-        {
-            if (procs)
-            {
+        if (!newprocs) {
+            if (procs) {
                 free(procs);
             }
             
@@ -530,38 +527,82 @@ void libsstats_get_processinfo(libsstats_processinfo *buf)
         
         procs = newprocs;
         st = sysctl(mib, miblen, procs, &size, NULL, 0);
-    }
-    while (st == -1 && errno == ENOMEM);
+    } while (st == -1 && errno == ENOMEM);
     
-    if (st != 0)
-    {
+    if (st != 0) {
         syslog(1, "libsysstats: Error: sysctl(KERN_PROC) failed.");
         return;
     }
     
-    if (size % sizeof(struct kinfo_proc) != 0)
-    {
+    if (size % sizeof(struct kinfo_proc) != 0) {
         return;
     }
     nprocs = size / sizeof(struct kinfo_proc);
     
-    if (!nprocs)
-    {
+    if (!nprocs) {
         syslog(1, "libsysstats: !nprocs");
         return;
     }
 
     /* Get all processes. */
-    for (i = nprocs - 1; i >= 0;  i--)
-    {
+    for (i = nprocs - 1; i >= 0;  i--) {
+        time_t now;
         libsstats_process proc;
-        proc.pid = (int)procs[i].kp_proc.p_pid;
         strncpy(proc.name, procs[i].kp_proc.p_comm, 256 - 1);
+        proc.pid = (int)procs[i].kp_proc.p_pid;
+        proc.priority = (u_char)(procs[i].kp_proc.p_priority);
+        
+        time (&now);
+
+        proc.run_time = now - procs[i].kp_proc.p_starttime.tv_sec;
+        
+        switch (procs[i].kp_proc.p_stat) {
+        case SIDL:
+            proc.state = LIBSSTATS_PROC_IDLE;
+            break;
+        case SRUN:
+            proc.state = LIBSSTATS_PROC_RUN;
+            break;
+        case SSLEEP:
+            proc.state = LIBSSTATS_PROC_SLEEP;
+            break;
+        case SSTOP:
+            proc.state = LIBSSTATS_PROC_STOP;
+            break;
+        case SZOMB:
+            proc.state = LIBSSTATS_PROC_ZOMBIE;
+            break;
+        default:
+            proc.state = LIBSSTATS_PROC_UNKNOWN;
+            break;
+        }
+        
         buf->processes[buf->number] = proc;
         buf->number++;
     }
     
     free(procs);
+}
+
+// -----------------------------------------------------------------------------
+#pragma mark Uptime
+// -----------------------------------------------------------------------------
+
+void libsstats_get_uptime(libsstats_uptime *buf)
+{
+    int mib[] = { CTL_KERN, KERN_BOOTTIME };
+	struct timeval boottime;
+	size_t size = sizeof (boottime);
+	time_t now;
+    	
+	memset (buf, 0, sizeof (libsstats_uptime));
+        
+	if (sysctl (mib, 2, &boottime, &size, NULL, 0) == -1)
+		return;
+	time (&now);
+    
+    buf->boot_time = boottime.tv_sec;
+	buf->uptime = now - boottime.tv_sec + 30;    
 }
 
 #ifdef __cplusplus
